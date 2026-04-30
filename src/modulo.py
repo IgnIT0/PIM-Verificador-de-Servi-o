@@ -7,23 +7,22 @@ import json
 import subprocess
 import platform
 import ipaddress
+import sys
+
+BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
 
 class Service:
+    # ... (Classe Service permanece igual, focada em HTTP e ICMP)
     def __init__(self, name, target, protocol="HTTP"):
         self.name = name
-        # Limpamos espaços extras que podem vir ao colar
-        self.target = target.strip() 
+        self.target = target.strip()
         self.protocol = protocol.upper()
         self.is_online = False
         self.latency = 0
         self.last_status = None
-        
-        # Detecta automaticamente se é IPv4, IPv6 ou Domínio
         self.ip_version = self._detect_ip_version()
 
     def _detect_ip_version(self):
-        """Identifica a versão do IP ou se é um domínio."""
-        # Remove temporariamente o protocolo para validar o host puro
         clean_host = self.target.replace("https://", "").replace("http://", "").split('/')[0].split(':')[0]
         try:
             ip = ipaddress.ip_address(clean_host)
@@ -32,9 +31,7 @@ class Service:
             return "Domínio/URL"
 
     def check_status(self):
-        """Executa a checagem baseada no protocolo escolhido."""
         if self.protocol == "HTTP":
-            # Garante que a URL tenha o prefixo para o urllib funcionar
             url = self.target if self.target.startswith("http") else f"https://{self.target}"
             return self._check_http(url)
         elif self.protocol == "ICMP":
@@ -57,12 +54,9 @@ class Service:
             return False, 0
 
     def _check_icmp(self):
-        """Executa o comando de Ping no sistema operacional."""
         try:
             inicio = datetime.datetime.now()
-            # Limpa o IP/Domínio para o comando ping não falhar com prefixos
             host = self.target.replace("https://", "").replace("http://", "").split('/')[0]
-            
             param = '-n' if platform.system().lower() == 'windows' else '-c'
             comando = ['ping', param, '1', host]
             
@@ -84,39 +78,39 @@ class Service:
 
 class Notifier:
     def __init__(self):
-        os.makedirs("logs", exist_ok=True)
+        # Caminho absoluto para a pasta logs ao lado do executável
+        self.log_path = os.path.join(BASE_DIR, "logs")
+        os.makedirs(self.log_path, exist_ok=True)
 
     def notify(self, service_name, status, message=""):
-        # Aplicação da data no padrão brasileiro D/M/Y
         timestamp = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         tipo = "[INFO]" if status else "[ALERTA]"
         estado = "ONLINE" if status else "OFFLINE"
         msg = f"{tipo} {timestamp} - {service_name} está {estado}. {message}"
         
-        with open("logs/uptime_history.log", "a", encoding="utf-8") as f:
+        log_file = os.path.join(self.log_path, "uptime_history.log")
+        with open(log_file, "a", encoding="utf-8") as f:
             f.write(msg + "\n")
         return msg
 
 class Storage:
-    def __init__(self, filename="data/uptime_data.csv", config_file="data/config.json"):
-        self.filename = filename
-        self.config_file = config_file
+    def __init__(self):
+        # Caminhos absolutos ao lado do executável
+        self.data_dir = os.path.join(BASE_DIR, "data")
+        self.filename = os.path.join(self.data_dir, "uptime_data.csv")
+        self.config_file = os.path.join(self.data_dir, "config.json")
         self._prepare_storage()
 
     def _prepare_storage(self):
-        folder = os.path.dirname(self.filename)
-        if folder: os.makedirs(folder, exist_ok=True)
+        os.makedirs(self.data_dir, exist_ok=True)
         if not os.path.exists(self.filename):
             with open(self.filename, mode='w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                # Adicionada coluna de versão do IP no CSV
                 writer.writerow(["data_hora", "servico", "status", "latencia_ms", "versao_ip"])
 
     def save_result(self, service, status, latency=0):
-        # Data formatada para o CSV no padrão D/M/Y
         timestamp = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         status_str = "ONLINE" if status else "OFFLINE"
-        
         with open(self.filename, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([timestamp, service.name, status_str, latency, service.ip_version])
