@@ -24,7 +24,7 @@ class UptimeApp:
 
         tk.Label(frame_add, text="URL:").grid(row=0, column=2)
         self.ent_url = tk.Entry(frame_add, width=30)
-        self.ent_url.insert(0, "https://")
+        self.ent_url.insert(0, "")
         self.ent_url.grid(row=0, column=3, padx=5)
 
         self.btn_add = tk.Button(frame_add, text="Adicionar", command=self.add_service, bg="#28a745", fg="white", font=("Arial", 9, "bold"))
