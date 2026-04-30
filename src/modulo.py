@@ -33,7 +33,7 @@ class Notifier:
         os.makedirs("logs", exist_ok=True)
 
     def notify(self, service_name, status, message=""):
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
         tipo = "[INFO]" if status else "[ALERTA]"
         estado = "ONLINE" if status else "OFFLINE"
         msg = f"{tipo} {timestamp} - {service_name} está {estado}. {message}"
@@ -56,7 +56,7 @@ class Storage:
                 writer.writerow(["timestamp", "service_name", "status", "latency_ms"])
 
     def save_result(self, service_name, status, latency=0):
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
         status_str = "ONLINE" if status else "OFFLINE"
         with open(self.filename, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
