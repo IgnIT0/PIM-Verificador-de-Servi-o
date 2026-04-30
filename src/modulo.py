@@ -44,6 +44,12 @@ class Service:
             return self._check_icmp()
         return False, 0
 
+    def update_info(self, new_name, new_target):
+        """Atualiza os dados do serviço e reavalia a versão do IP."""
+        self.name = new_name
+        self.target = new_target.strip().rstrip('/')
+        self.ip_version = self._detect_ip_version()
+
     def _check_http(self, url):
         try:
             inicio = datetime.datetime.now()
