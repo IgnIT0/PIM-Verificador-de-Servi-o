@@ -7,113 +7,147 @@ from modulo import Service, Notifier, Storage
 class UptimeApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Monitor de Uptime Profissional - PIM")
-        self.root.geometry("800x600")
+        self.root.title("Monitor de Infraestrutura - PIM ADS")
+        self.root.geometry("900x650")
+        
+        # --- DEFINIÇÃO DE CORES (DARK MODE) ---
+        self.colors = {
+            "bg": "#1e1e1e",
+            "card": "#2d2d2d",
+            "fg": "#ffffff",
+            "accent": "#007acc",
+            "success": "#4ec9b0",
+            "danger": "#f44747",
+            "border": "#3e3e3e"
+        }
+
+        self.root.configure(bg=self.colors["bg"])
         
         self.notifier = Notifier()
         self.storage = Storage()
         self.services = []
 
-        # --- CABEÇALHO E CADASTRO ---
-        frame_add = tk.LabelFrame(root, text=" Configuração de Monitoramento ", padx=15, pady=15)
+        # Estilização do Treeview (Tabela) para o Modo Escuro
+        self.style = ttk.Style()
+        self.style.theme_use("clam")
+        self.style.configure("Treeview", 
+            background=self.colors["card"], 
+            foreground=self.colors["fg"], 
+            fieldbackground=self.colors["card"],
+            bordercolor=self.colors["border"],
+            rowheight=30
+        )
+        self.style.map("Treeview", background=[('selected', self.colors["accent"])])
+        self.style.configure("Treeview.Heading", background=self.colors["border"], foreground=self.colors["fg"], borderwidth=0)
+
+        # --- ÁREA DE CADASTRO ---
+        frame_add = tk.LabelFrame(root, text=" Adicionar Alvo de Monitoramento ", 
+                                  bg=self.colors["bg"], fg=self.colors["fg"], padx=15, pady=15)
         frame_add.pack(fill="x", padx=20, pady=10)
 
-        tk.Label(frame_add, text="Nome:").grid(row=0, column=0)
-        self.ent_name = tk.Entry(frame_add, width=15)
+        # Nome
+        tk.Label(frame_add, text="Nome:", bg=self.colors["bg"], fg=self.colors["fg"]).grid(row=0, column=0, padx=5)
+        self.ent_name = tk.Entry(frame_add, width=15, bg=self.colors["card"], fg=self.colors["fg"], insertbackground="white")
         self.ent_name.grid(row=0, column=1, padx=5)
 
-        tk.Label(frame_add, text="URL:").grid(row=0, column=2)
-        self.ent_url = tk.Entry(frame_add, width=30)
-        self.ent_url.insert(0, "")
-        self.ent_url.grid(row=0, column=3, padx=5)
+        # Alvo (IP ou URL)
+        tk.Label(frame_add, text="Alvo (IP/URL):", bg=self.colors["bg"], fg=self.colors["fg"]).grid(row=0, column=2, padx=5)
+        self.ent_target = tk.Entry(frame_add, width=25, bg=self.colors["card"], fg=self.colors["fg"], insertbackground="white")
+        self.ent_target.grid(row=0, column=3, padx=5)
 
-        self.btn_add = tk.Button(frame_add, text="Adicionar", command=self.add_service, bg="#28a745", fg="white", font=("Arial", 9, "bold"))
-        self.btn_add.grid(row=0, column=4, padx=5)
+        # Protocolo (Seletor)
+        tk.Label(frame_add, text="Protocolo:", bg=self.colors["bg"], fg=self.colors["fg"]).grid(row=0, column=4, padx=5)
+        self.combo_proto = ttk.Combobox(frame_add, values=["HTTP", "ICMP"], width=8, state="readonly")
+        self.combo_proto.current(0)
+        self.combo_proto.grid(row=0, column=5, padx=5)
 
-        # Botão Remover (Vermelho)
-        self.btn_remove = tk.Button(frame_add, text="Remover Selecionado", command=self.remove_service, bg="#dc3545", fg="white", font=("Arial", 9, "bold"))
-        self.btn_remove.grid(row=0, column=5, padx=5)
+        # Botões
+        self.btn_add = tk.Button(frame_add, text="ADICIONAR", command=self.add_service, 
+                                 bg=self.colors["accent"], fg="white", font=("Arial", 9, "bold"), padx=10)
+        self.btn_add.grid(row=0, column=6, padx=5)
 
-        # --- TABELA DE EXIBIÇÃO ---
-        colunas = ("nome", "status", "latencia", "visto")
+        self.btn_remove = tk.Button(frame_add, text="REMOVER", command=self.remove_service, 
+                                    bg=self.colors["danger"], fg="white", font=("Arial", 9, "bold"), padx=10)
+        self.btn_remove.grid(row=0, column=7, padx=5)
+
+        # --- TABELA DE MONITORAMENTO ---
+        colunas = ("nome", "tipo", "status", "latencia", "visto")
         self.tree = ttk.Treeview(root, columns=colunas, show="headings")
-        self.tree.heading("nome", text="SERVIÇO")
+        
+        self.tree.heading("nome", text="SERVIÇO / SERVIDOR")
+        self.tree.heading("tipo", text="IP / VERSÃO")
         self.tree.heading("status", text="STATUS")
         self.tree.heading("latencia", text="LATÊNCIA")
-        self.tree.heading("visto", text="ÚLTIMA VERIFICAÇÃO")
+        self.tree.heading("visto", text="ÚLTIMA ATUALIZAÇÃO")
+
+        self.tree.column("nome", width=200)
+        self.tree.column("tipo", width=120, anchor="center")
+        self.tree.column("status", width=120, anchor="center")
+        self.tree.column("latencia", width=100, anchor="center")
+        self.tree.column("visto", width=180, anchor="center")
+        
         self.tree.pack(fill="both", expand=True, padx=20, pady=10)
 
-        # --- CARREGAR DADOS SALVOS ---
         self.load_saved_data()
-
-        # Iniciar loop
         self.update_loop()
-
-    def load_saved_data(self):
-        """Carrega os serviços do arquivo JSON para a memória e para a tela."""
-        saved_list = self.storage.load_services_config()
-        for item in saved_list:
-            novo_servico = Service(item['name'], item['url'])
-            self.services.append(novo_servico)
-            self.tree.insert("", "end", iid=item['name'], values=(item['name'], "Carregando...", "--", "--"))
 
     def add_service(self):
         name = self.ent_name.get().strip()
-        url = self.ent_url.get().strip()
+        target = self.ent_target.get().strip()
+        protocol = self.combo_proto.get()
 
-        if not name or len(url) < 10:
-            messagebox.showwarning("Aviso", "Dados inválidos.")
+        if not name or not target:
+            messagebox.showwarning("Erro", "Preencha todos os campos corretamente.")
             return
 
-        novo_servico = Service(name, url)
+        novo_servico = Service(name, target, protocol)
         self.services.append(novo_servico)
-        self.tree.insert("", "end", iid=name, values=(name, "Aguardando...", "--", "--"))
         
-        # Salva a nova lista no arquivo
+        # Insere na tabela com a versão do IP detectada no módulo
+        self.tree.insert("", "end", iid=name, values=(name, novo_servico.ip_version, "⏳ Aguardando", "--", "--"))
+        
         self.storage.save_services_config(self.services)
-        
         self.ent_name.delete(0, tk.END)
-        self.ent_url.delete(0, tk.END)
+        self.ent_target.delete(0, tk.END)
 
     def remove_service(self):
-        """Remove o serviço selecionado da tabela, da lista e do arquivo JSON."""
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Aviso", "Selecione um serviço na tabela para remover.")
-            return
+        selected = self.tree.selection()
+        if not selected: return
         
-        service_name = selected_item[0]
-        
-        # 1. Remover da lista de objetos
+        service_name = selected[0]
         self.services = [s for s in self.services if s.name != service_name]
-        
-        # 2. Remover da tabela visual
         self.tree.delete(service_name)
-        
-        # 3. Atualizar arquivo de configuração
         self.storage.save_services_config(self.services)
-        messagebox.showinfo("Sucesso", f"Serviço '{service_name}' removido.")
+
+    def load_saved_data(self):
+        saved_list = self.storage.load_services_config()
+        for item in saved_list:
+            # Reconstrói o serviço com o protocolo salvo
+            novo = Service(item['name'], item['target'], item.get('protocol', 'HTTP'))
+            self.services.append(novo)
+            self.tree.insert("", "end", iid=novo.name, values=(novo.name, novo.ip_version, "⏳ Carregando", "--", "--"))
 
     def run_check(self, service):
         status_atual, latencia = service.check_status()
-        self.storage.save_result(service.name, status_atual, latencia)
-        
+        self.storage.save_result(service, status_atual, latencia) # Envia objeto completo para o CSV
+
         if service.last_status is not None and service.last_status != status_atual:
             self.notifier.notify(service.name, status_atual)
         
         service.last_status = status_atual
         status_texto = "ONLINE ✅" if status_atual else "OFFLINE ❌"
-        agora = datetime.datetime.now().strftime("%H:%M:%S")
+        # Data formatada no padrão brasileiro D/M/Y
+        agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         
-        # Verifica se o item ainda existe antes de atualizar (evita erro ao remover)
         if self.tree.exists(service.name):
-            self.tree.item(service.name, values=(service.name, status_texto, f"{latencia}ms", agora))
+            self.tree.item(service.name, values=(service.name, service.ip_version, status_texto, f"{latencia}ms", agora))
 
     def update_loop(self):
         for s in self.services:
             t = threading.Thread(target=self.run_check, args=(s,))
             t.daemon = True
             t.start()
+        # Intervalo de 30 segundos
         self.root.after(30000, self.update_loop)
 
 if __name__ == "__main__":
